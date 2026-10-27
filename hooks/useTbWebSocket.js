@@ -87,28 +87,63 @@ export function useTbWebSocket(deviceId, tbToken, ecgSampleFreq = 250) {
     }
   }, []);
 
-  // ── Server-mediated polling loop (1 Hz) ─────────────────────────────
+  // ── Telemetry polling loop (1 Hz) ───────────────────────────────────
+  // Supports both direct browser fetch (bypassing Cloudflare datacenter blocks on Vercel)
+  // and server-mediated /api/telemetry/latest proxy for local/custom environments.
   const pollTelemetry = useCallback(async (targetDeviceId) => {
     if (!activeRef.current) return;
     const reqGen = ++requestGenRef.current;
 
     try {
       abortCtrlRef.current = new AbortController();
-      const res = await fetch(`/api/telemetry/latest?deviceId=${encodeURIComponent(targetDeviceId)}`, {
-        signal: abortCtrlRef.current.signal,
-        headers: tbToken ? { "x-tb-token": tbToken } : {},
-      });
+      let data = {};
+      const effectiveToken = tbToken || (typeof window !== "undefined" ? sessionStorage.getItem("tb_token") : null);
+      const tbUrl = process.env.NEXT_PUBLIC_TB_BASE_URL?.replace(/\/$/, "");
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+      // 1. Direct ThingsBoard fetch from browser (crucial on Vercel where serverless IPs are blocked by Cloudflare)
+      let directSuccess = false;
+      if (effectiveToken && tbUrl && !tbUrl.includes("your-tb-host")) {
+        try {
+          const keys = "ppgHeartRate,ecgHeartRate,spo2,temperature,battery,ecg_batch,ppg_batch";
+          const directRes = await fetch(
+            `${tbUrl}/api/plugins/telemetry/DEVICE/${encodeURIComponent(targetDeviceId)}/values/timeseries?keys=${keys}&useStrictDataTypes=true`,
+            {
+              signal: abortCtrlRef.current.signal,
+              headers: {
+                "Content-Type": "application/json",
+                "X-Authorization": `Bearer ${effectiveToken}`,
+              },
+            }
+          );
+          if (directRes.ok) {
+            const rawData = await directRes.json();
+            if (rawData && typeof rawData === "object" && Object.keys(rawData).length > 0) {
+              data = rawData;
+              directSuccess = true;
+            }
+          }
+        } catch (_) {}
       }
 
-      const json = await res.json();
+      // 2. Fallback to server-mediated proxy if direct fetch wasn't possible or failed
+      if (!directSuccess) {
+        try {
+          const res = await fetch(`/api/telemetry/latest?deviceId=${encodeURIComponent(targetDeviceId)}`, {
+            signal: abortCtrlRef.current.signal,
+            headers: effectiveToken ? { "x-tb-token": effectiveToken } : {},
+          });
+          if (res.ok) {
+            const json = await res.json();
+            if (!json.error && json.data) {
+              data = json.data;
+            }
+          }
+        } catch (_) {}
+      }
+
       if (!activeRef.current || reqGen !== requestGenRef.current) return;
 
-      const data = json.data || {};
       const now = Date.now();
-
       let hasRecentSample = false;
 
       // Extract vitals: support both { value, ts } object and array-of-tuples [[ts, val]]
@@ -128,7 +163,7 @@ export function useTbWebSocket(deviceId, tbToken, ecgSampleFreq = 250) {
           val = item.value;
         }
 
-        if (ts !== undefined && val !== undefined) {
+        if (ts !== undefined && val !== undefined && val !== null && val !== "") {
           const numVal = parseFloat(val);
           const tsNum = Number(ts);
           if (!isNaN(numVal) && !isNaN(tsNum)) {

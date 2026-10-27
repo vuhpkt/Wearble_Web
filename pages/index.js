@@ -458,7 +458,7 @@ export default function Dashboard() {
     lastBatchTs,
     connected,
     lastUpdate,
-  } = useTbWebSocket(selectedDeviceId, tbToken, settings.ecgSampleFreq);
+  } = useTbWebSocket(selectedDeviceId, tbAuthToken || tbToken, settings.ecgSampleFreq);
 
   /* ── Alert status callback from LiveVitalsPanel (Task 5: isolated 1s clock) ── */
   const handleAlertChange = useCallback((deviceId, hasAlert) => {
