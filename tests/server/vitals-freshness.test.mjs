@@ -45,6 +45,17 @@ test('T5-FRESH-5: Missing, null, undefined or NaN values safely return null', ()
   assert.equal(getFreshVitalValue({ value: 98, ts: NaN }, now), null);
 });
 
+test('T5-FRESH-6: Battery 30s interval expands freshness window to 90s', () => {
+  const now = 100000;
+  // Battery sample 45s old (exceeds default 10s, but fresh under 90s window)
+  const entry = { value: 65, ts: 55000 };
+  assert.equal(getFreshVitalValue(entry, now, 1000, 'battery'), 65);
+
+  // Stale battery sample 95s old (> 90s)
+  const staleEntry = { value: 65, ts: 4000 };
+  assert.equal(getFreshVitalValue(staleEntry, now, 1000, 'battery'), null);
+});
+
 test('T5-ALERT-1: Danger threshold triggers alert when fresh and online', () => {
   const now = 10000;
   const vitals = {

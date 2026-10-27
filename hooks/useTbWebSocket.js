@@ -168,7 +168,7 @@ export function useTbWebSocket(deviceId, tbToken, ecgSampleFreq = 250) {
           const tsNum = Number(ts);
           if (!isNaN(numVal) && !isNaN(tsNum)) {
             pendingVitals.current = mergeVitalsMonotonic(pendingVitals.current, {
-              [key]: { value: numVal, ts: tsNum }
+              [key]: { value: numVal, ts: tsNum, key }
             });
             // Passive freshness: sample is genuinely fresh or advancing in real time
             const skewMs = Math.abs(now - tsNum);

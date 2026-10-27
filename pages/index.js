@@ -663,7 +663,7 @@ export default function Dashboard() {
   // A vital is "stale" (sensor/mode stopped reporting it) if its last update is
   // older than 3x the vital interval — show "--" instead of the frozen last value.
   const getValue = (key) => {
-    return getFreshVitalValue(vitals?.[key], Date.now(), settings.vitalInterval);
+    return getFreshVitalValue(vitals?.[key], Date.now(), key === "battery" ? 30000 : settings.vitalInterval, key);
   };
 
   const formatTime = (date) =>

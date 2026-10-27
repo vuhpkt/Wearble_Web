@@ -58,7 +58,7 @@ export default function LiveVitalsPanel({
         const trendIcon = trend === "up" ? "↑" : trend === "down" ? "↓" : null;
         const trendColor = trend === "up" ? "#ef4444" : trend === "down" ? "#3b82f6" : null;
         const t = settings?.thresholds?.[v.key];
-        const freshVal = getFreshVitalValue(vitals?.[v.key], now, settings?.vitalInterval);
+        const freshVal = getFreshVitalValue(vitals?.[v.key], now, v.key === "battery" ? 30000 : settings?.vitalInterval, v.key);
 
         return (
           <div
